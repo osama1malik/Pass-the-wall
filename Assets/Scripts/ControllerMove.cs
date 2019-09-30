@@ -2,71 +2,76 @@
 using UnityEngine;
 using Leap;
 using Leap.Unity;
-using Microsoft.ML;
-using Microsoft.ML.Data;
 using System;
 using System.IO;
-using System.Threading.Tasks;
+
+using Emgu.CV;
+using Emgu.CV.Structure;
+using Emgu.CV.ML;
+using System.Linq;
 
 public class ControllerMove : MonoBehaviour
 {
-    string fingerPositionString = "";
-    string fingerDistanceString = "";
-    int numberOfFingers;
-    string currentHand = "";
-    string currentGestureName = "";
-    string gestureData = "";
-
-    public GameObject model3D;
-
+    //Dataset and Test Data Paths
     private string TrainingDataPath = @"dataset.csv";
     private string TestingDataPath = @"testDataset.csv";
+    private string TwoTrainingDataPath = @"twoHandsDataset.csv";
+    private string TwoTestingDataPath = @"twoHandsTestDataset.csv";
 
-    MLContext context;
-    ITransformer model;
-    bool trained = false;
-    string a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v;
+    //Matrix used in training of data
+    Matrix<float> TrainData;
+    Matrix<float> TestData;
+    Matrix<int> TrainLabel;
+    Matrix<int> TestLabel;
+    Matrix<float> TwoTrainData;
+    Matrix<float> TwoTestData;
+    Matrix<int> TwoTrainLabel;
+    Matrix<int> TwoTestLabel;
 
+    //Matrix used in recognization of gestures
+    Matrix<float> DataUnderObservation;
+    Matrix<float> TwoDataUnderObservation;
 
-    static readonly string _dataPath = Path.Combine(Environment.CurrentDirectory, "Data", "dataset.csv");
-    static readonly string _modelPath = Path.Combine(Environment.CurrentDirectory, "Data", "custClusteringModel.zip");
+    //SVM Objects used to train data
+    SVM svm;
+    SVM twoSvm;
 
+    //Gameobject of model using in the scene
+    public GameObject model3D;
+
+    //Strings used in and after recognization of gestures
+    string gestureData = "";
     string recognizedGesture;
 
+    //Some data used after recognization after recognization
     Vector previousFrameHandPosition;
-
     float speed = 0.18f;
+    float currentDist = 0.0f;
+    float prevDist = 0.0f;
+
+    //Intilizations for Scaling, Translation & Rotation of models;
+    Quaternion modelRotation; float x, y, z;
+    Vector3 modelPosition; float xx, yy, zz;
+
     // Start is called before the first frame update
     void Start()
     {
-
+        LoadTrainData();
+        LoadTestData();
+        TwoLoadTrainData();
+        TwoLoadTestData();
         TrainGesture();
-        //GestureData data = new GestureData()
-        //{
-        //    FingerCount = 5,
-        //    HandType = 100,
-        //    ThumbX = 20.16582F,
-        //    ThumbY = -52.95452F,
-        //    ThumbZ = -25.26981F,
-        //    IndexX = 16.76583F,
-        //    IndexY = -32.51812F,
-        //    IndexZ = 10.95229F,
-        //    MiddleX = 7.48679F,
-        //    MiddleY = -29.70361F,
-        //    MiddleZ = 19.17374F,
-        //    RingX = -2.938736F,
-        //    RingY = -26.24084F,
-        //    RingZ = 22.8723F,
-        //    PinkyX = -15.13478F,
-        //    PinkyY = -23.20125F,
-        //    PinkyZ = 17.12656F,
-        //    ThumbIndex = 41,
-        //    IndexMiddle = 12,
-        //    MiddleRing = 11,
-        //    RingPinky = 13,
-        //    PinkyThumb = 62
-        //};
-        //TrainGesture(data);
+
+        modelRotation = model3D.transform.rotation;
+        x = modelRotation.x;
+        y = modelRotation.y;
+        z = modelRotation.z;
+
+        modelPosition = model3D.transform.position;
+        xx = modelPosition.x;
+        yy = modelPosition.y;
+        zz = modelPosition.z;
+
     }
 
     // Update is called once per frame
@@ -77,48 +82,177 @@ public class ControllerMove : MonoBehaviour
         {
             generateDataForGesture(controller);
 
-            string[] data = gestureData.Split(',');
+            Frame frame = controller.Frame();
 
-            a = data[0]; b = data[1]; c = data[2]; d = data[3]; e = data[4]; f = data[5]; g = data[6]; h = data[7]; i = data[8]; j = data[9]; k = data[10]; l = data[11]; m = data[12]; n = data[13]; o = data[14]; p = data[15]; q = data[16]; r = data[17]; s = data[18]; t = data[19]; u = data[20]; v = data[21];
-
-            GestureData model = new GestureData()
+            if (frame.Hands.Count == 1)
             {
-                FingerCount = float.Parse(a),
-                HandType = float.Parse(b),
-                ThumbX = float.Parse(c),
-                ThumbY = float.Parse(d),
-                ThumbZ = float.Parse(e),
-                IndexX = float.Parse(f),
-                IndexY = float.Parse(g),
-                IndexZ = float.Parse(h),
-                MiddleX = float.Parse(i),
-                MiddleY = float.Parse(j),
-                MiddleZ = float.Parse(k),
-                RingX = float.Parse(l),
-                RingY = float.Parse(m),
-                RingZ = float.Parse(n),
-                PinkyX = float.Parse(o),
-                PinkyY = float.Parse(p),
-                PinkyZ = float.Parse(q),
-                ThumbIndex = float.Parse(r),
-                IndexMiddle = float.Parse(s),
-                MiddleRing = float.Parse(t),
-                RingPinky = float.Parse(u),
-                PinkyThumb = float.Parse(v)
-            };
+                List<float[]> trainList = new List<float[]>();
 
-            PredictGesture(model, controller);
+                float[] data = gestureData.Split(',').Select(x => float.Parse(x)).ToArray();
+
+                trainList.Add(data);
+
+                DataUnderObservation = new Matrix<float>(To2D<float>(trainList.ToArray()));
+
+                PredictGesture(controller, 1);
+            }
+            else if (frame.Hands.Count == 2)
+            {
+                List<float[]> trainList = new List<float[]>();
+
+                float[] data = gestureData.Split(',').Select(x => float.Parse(x)).ToArray();
+
+                trainList.Add(data);
+
+                DataUnderObservation = new Matrix<float>(To2D<float>(trainList.ToArray()));
+
+                PredictGesture(controller, 2);
+            }
         }
-
         if (!controller.IsConnected)
         {
             Debug.Log("Connect Leap Motion Controller");
         }
     }
 
+    private void LoadTrainData()
+    {
+        List<float[]> trainList = new List<float[]>();
+        List<int> trainLabel = new List<int>();
+
+        StreamReader reader = new StreamReader(TrainingDataPath);
+
+        string line = "";
+        if (!File.Exists(TrainingDataPath))
+        {
+            throw new Exception("File Not found");
+        }
+
+        while ((line = reader.ReadLine()) != null)
+        {
+            int firstIndex = line.IndexOf(',');
+            int currentLabel = Convert.ToInt32(line.Substring(0, firstIndex));
+            string currentData = line.Substring(firstIndex + 1);
+            float[] data = currentData.Split(',').Select(x => float.Parse(x)).ToArray();
+
+            trainList.Add(data);
+            trainLabel.Add(currentLabel);
+        }
+
+        TrainData = new Matrix<float>(To2D<float>(trainList.ToArray()));
+        TrainLabel = new Matrix<int>(trainLabel.ToArray());
+    }
+
+    private void LoadTestData()
+    {
+        List<float[]> trainList = new List<float[]>();
+        List<int> trainLabel = new List<int>();
+
+        StreamReader reader = new StreamReader(TestingDataPath);
+
+        string line = "";
+        if (!File.Exists(TestingDataPath))
+        {
+            throw new Exception("File Not found");
+        }
+
+        while ((line = reader.ReadLine()) != null)
+        {
+            int firstIndex = line.IndexOf(',');
+            int currentLabel = Convert.ToInt32(line.Substring(0, firstIndex));
+            string currentData = line.Substring(firstIndex + 1);
+            float[] data = currentData.Split(',').Select(x => float.Parse(x)).ToArray();
+
+            trainList.Add(data);
+            trainLabel.Add(currentLabel);
+        }
+
+        TestData = new Matrix<float>(To2D<float>(trainList.ToArray()));
+        TestLabel = new Matrix<int>(trainLabel.ToArray());
+    }
+
+    private void TwoLoadTrainData()
+    {
+        List<float[]> trainList = new List<float[]>();
+        List<int> trainLabel = new List<int>();
+
+        StreamReader reader = new StreamReader(TwoTrainingDataPath);
+
+        string line = "";
+        if (!File.Exists(TwoTrainingDataPath))
+        {
+            throw new Exception("File Not found");
+        }
+
+        while ((line = reader.ReadLine()) != null)
+        {
+            int firstIndex = line.IndexOf(',');
+            int currentLabel = Convert.ToInt32(line.Substring(0, firstIndex));
+            string currentData = line.Substring(firstIndex + 1);
+            float[] data = currentData.Split(',').Select(x => float.Parse(x)).ToArray();
+
+            trainList.Add(data);
+            trainLabel.Add(currentLabel);
+        }
+
+        TwoTrainData = new Matrix<float>(To2D<float>(trainList.ToArray()));
+        TwoTrainLabel = new Matrix<int>(trainLabel.ToArray());
+    }
+
+    private void TwoLoadTestData()
+    {
+        List<float[]> trainList = new List<float[]>();
+        List<int> trainLabel = new List<int>();
+
+        StreamReader reader = new StreamReader(TwoTestingDataPath);
+
+        string line = "";
+        if (!File.Exists(TwoTestingDataPath))
+        {
+            throw new Exception("File Not found");
+        }
+
+        while ((line = reader.ReadLine()) != null)
+        {
+            int firstIndex = line.IndexOf(',');
+            int currentLabel = Convert.ToInt32(line.Substring(0, firstIndex));
+            string currentData = line.Substring(firstIndex + 1);
+            float[] data = currentData.Split(',').Select(x => float.Parse(x)).ToArray();
+
+            trainList.Add(data);
+            trainLabel.Add(currentLabel);
+        }
+
+        TwoTestData = new Matrix<float>(To2D<float>(trainList.ToArray()));
+        TwoTestLabel = new Matrix<int>(trainLabel.ToArray());
+    }
+
+    private T[,] To2D<T>(T[][] source)
+    {
+        try
+        {
+            int FirstDim = source.Length;
+            int SecondDim = source.GroupBy(row => row.Length).Single().Key; // throws InvalidOperationException if source is not rectangular
+
+            var result = new T[FirstDim, SecondDim];
+            for (int i = 0; i < FirstDim; ++i)
+                for (int j = 0; j < SecondDim; ++j)
+                    result[i, j] = source[i][j];
+
+            return result;
+        }
+        catch (InvalidOperationException)
+        {
+            throw new InvalidOperationException("The given jagged array is not rectangular.");
+        }
+    }
+
     private void generateDataForGesture(Controller controller)
     {
-        //Controller controller = new Controller();
+        string fingerPositionString = "";
+        string fingerDistanceString = "";
+        int numberOfFingers;
+        string currentHand = "";
 
         Frame frame = controller.Frame();
         numberOfFingers = 0;
@@ -195,12 +329,13 @@ public class ControllerMove : MonoBehaviour
         }
         fingerPositionString += fingerDistanceString;
         fingerDistanceString = "";
-        gestureData = numberOfFingers + "," + fingerPositionString;
+        gestureData = (numberOfFingers + "," + fingerPositionString).TrimEnd(',');
         fingerPositionString = "";
+
     }
+
     private float DistanceBetweenTwoPoints(Vector3 p1, Vector3 p2)
     {
-
         float dx = p1.x - p2.x;
         float dy = p1.y - p2.y;
         float dz = p1.z - p2.z;
@@ -210,89 +345,126 @@ public class ControllerMove : MonoBehaviour
 
     private void TrainGesture()
     {
-        var dataLocation = "./dataset.csv";
-
-        context = new MLContext();
-
-        var textLoader = context.Data.CreateTextLoader(new[]
+        try
         {
-            new TextLoader.Column("FingerCount", DataKind.Single, 0),
-            new TextLoader.Column("HandType", DataKind.Single, 1),
-            new TextLoader.Column("ThumbX", DataKind.Single, 2),
-            new TextLoader.Column("ThumbY", DataKind.Single, 3),
-            new TextLoader.Column("ThumbZ", DataKind.Single, 4),
-            new TextLoader.Column("IndexX", DataKind.Single, 5),
-            new TextLoader.Column("IndexY", DataKind.Single, 6),
-            new TextLoader.Column("IndexZ", DataKind.Single, 7),
-            new TextLoader.Column("MiddleX", DataKind.Single, 8),
-            new TextLoader.Column("MiddleY", DataKind.Single, 9),
-            new TextLoader.Column("MiddleZ", DataKind.Single, 10),
-            new TextLoader.Column("RingX", DataKind.Single, 11),
-            new TextLoader.Column("RingY", DataKind.Single, 12),
-            new TextLoader.Column("RingZ", DataKind.Single, 13),
-            new TextLoader.Column("PinkyX", DataKind.Single, 14),
-            new TextLoader.Column("PinkyY", DataKind.Single, 15),
-            new TextLoader.Column("PinkyZ", DataKind.Single, 16),
-            new TextLoader.Column("ThumbIndex", DataKind.Single, 17),
-            new TextLoader.Column("IndexMiddle", DataKind.Single, 18),
-            new TextLoader.Column("MiddleRing", DataKind.Single, 19),
-            new TextLoader.Column("RingPinky", DataKind.Single, 20),
-            new TextLoader.Column("PinkyThumb", DataKind.Single, 21),
-            new TextLoader.Column("Label", DataKind.Single, 22)
-            },
-        hasHeader: true,
-        separatorChar: ',');
+            if (File.Exists("svm.txt"))
+            {
+                svm = new SVM();
+                FileStorage file = new FileStorage("svm.txt", FileStorage.Mode.Read);
+                svm.Read(file.GetNode("opencv_ml_svm"));
+            }
+            else
+            {
+                svm = new SVM();
+                svm.C = 100;
+                svm.Type = SVM.SvmType.CSvc;
+                svm.Gamma = 0.005;
+                svm.SetKernel(SVM.SvmKernelType.Linear);
+                svm.TermCriteria = new MCvTermCriteria(1000, 1e-6);
+                svm.Train(TrainData, Emgu.CV.ML.MlEnum.DataLayoutType.RowSample, TrainLabel);
+                svm.Save("svm.txt");
+            }
+            Debug.Log("SVM is trained.");
+        }
+        catch (Exception ex)
+        {
+            Debug.Log(ex.Message);
+        }
 
-        IDataView data = textLoader.Load(dataLocation);
-
-        var trainTestData = context.Data.TrainTestSplit(data, testFraction: 0.2);
-
-        var pipeline = context.Transforms.Concatenate("Features", "FingerCount", "HandType", "ThumbX", "ThumbY", "ThumbZ", "IndexX", "IndexY",
-            "IndexZ", "MiddleX", "MiddleY", "MiddleZ", "RingX", "RingY", "RingZ", "PinkyX", "PinkyY", "PinkyZ", "ThumbIndex", "IndexMiddle",
-            "MiddleRing", "RingPinky", "PinkyThumb", "Label")
-            .Append(context.Clustering.Trainers.KMeans(featureColumnName: "Features", numberOfClusters: 6));
-
-        var preview = trainTestData.TrainSet.Preview();
-
-        model = pipeline.Fit(trainTestData.TrainSet);
-
-        var predictions = model.Transform(trainTestData.TestSet);
-        
-        var metrics = context.Clustering.Evaluate(predictions, scoreColumnName: "Score", featureColumnName: "Features");
-
+        try
+        {
+            if (File.Exists("twoooSvm.txt"))
+            {
+                twoSvm = new SVM();
+                FileStorage file = new FileStorage("twoooSvm.txt", FileStorage.Mode.Read);
+                twoSvm.Read(file.GetNode("opencv_ml_svm"));
+            }
+            else
+            {
+                twoSvm = new SVM();
+                twoSvm.C = 100;
+                twoSvm.Type = SVM.SvmType.CSvc;
+                twoSvm.Gamma = 0.005;
+                twoSvm.SetKernel(SVM.SvmKernelType.Linear);
+                twoSvm.TermCriteria = new MCvTermCriteria(1000, 1e-6);
+                twoSvm.Train(TwoTrainData, Emgu.CV.ML.MlEnum.DataLayoutType.RowSample, TwoTrainLabel);
+                //twoSvm.Save("twooSvm.txt");
+            }
+            Debug.Log("Two Hands SVM is trained.");
+        }
+        catch (Exception ex)
+        {
+            Debug.Log(ex.Message);
+        }
     }
 
-    void PredictGesture(GestureData gs, Controller c)
+    void PredictGesture(Controller c, int h)
     {
-        var predictionFunc = context.Model.CreatePredictionEngine<GestureData, GesturePrediction>(model);
-
-        var prediction = predictionFunc.Predict(gs);
-
-        int gestureId = Convert.ToInt32(prediction.SelectedClusterId);
-
-        switch (gestureId)
+        if (DataUnderObservation == null && TwoDataUnderObservation == null)
         {
-            case 1:
-                recognizedGesture = "LeftHandSlide";
-                break;
-            case 2:
-                recognizedGesture = "LeftHandClose";
-                break;
-            case 3:
-                recognizedGesture = "RightHandSlide";
-                break;
-            case 4:
-                recognizedGesture = "RightHandClose";
-                break;
-            case 5:
-                recognizedGesture = "LeftHandGrip";
-                break;
-            case 6:
-                recognizedGesture = "RightHandGrip";
-                break;
-            default:
-                recognizedGesture = "No Gesture Found";
-                break;
+            return;
+        }
+
+        if (svm == null && twoSvm == null)
+        {
+            return;
+        }
+
+        //Try Catch Block For Prediction of gesture
+        try
+        {
+            for (int i = 0; i < DataUnderObservation.Rows; i++)
+            {
+                Matrix<float> row = DataUnderObservation.GetRow(i);
+                float predict = 0;
+                if (h == 1)
+                    predict = svm.Predict(row);
+                else if (h == 2)
+                    predict = twoSvm.Predict(row);
+
+                switch (predict)
+                {
+                    case 0:
+                        recognizedGesture = "LeftHandSlide";
+                        break;
+                    case 1:
+                        recognizedGesture = "LeftHandClose";
+                        break;
+                    case 2:
+                        recognizedGesture = "RightHandSlide";
+                        break;
+                    case 3:
+                        recognizedGesture = "RightHandClose";
+                        break;
+                    case 4:
+                        recognizedGesture = "RightHandGrip";
+                        break;
+                    case 5:
+                        recognizedGesture = "LeftHandGrip";
+                        break;
+                    case 6:
+                        recognizedGesture = "TwoHandsSlide";
+                        break;
+                    case 7:
+                        recognizedGesture = "TwoHandsGrip";
+                        break;
+                    case 8:
+                        recognizedGesture = "LeftCloseRightGrip";
+                        break;
+                    case 9:
+                        recognizedGesture = "RightCloseLeftGrip";
+                        break;
+                    default:
+                        recognizedGesture = "No Gesture Found";
+                        break;
+                }
+                Debug.Log("Predicted Label: " + recognizedGesture);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.Log(ex.Message);
+            recognizedGesture = "No Gesture Found";
         }
 
         if (recognizedGesture.Equals("LeftHandSlide") || recognizedGesture.Equals("RightHandSlide"))
@@ -301,107 +473,114 @@ public class ControllerMove : MonoBehaviour
             Hand hand = frame.Hands[0];
             Vector palmPos = hand.PalmPosition;
 
-            if (previousFrameHandPosition == null)
+            if (previousFrameHandPosition.x == 0)
             {
                 previousFrameHandPosition = palmPos;
-            }
-            else
+                return;
+            } else
             {
-                Vector3 pos = model3D.transform.position;
-                pos.x += (palmPos.x - previousFrameHandPosition.x) * speed;
-                pos.y += (palmPos.y - previousFrameHandPosition.y) * speed;
-                //pos.z += (palmPos.z - previousFrameHandPosition.z) * speed;
-                model3D.transform.position = new Vector3(pos.x, pos.y, pos.z);
-                previousFrameHandPosition = palmPos;
+                float diffX = (palmPos.x - previousFrameHandPosition.x) * speed;
+                float diffY = (palmPos.y - previousFrameHandPosition.y) * speed;
+                float diffZ = (palmPos.z - previousFrameHandPosition.z) * speed;
+
+                model3D.transform.position = new Vector3((xx + diffX), (yy + diffY), (zz + diffZ));
             }
+
         }
-        if (recognizedGesture.Equals("LeftHandGrip") || recognizedGesture.Equals("RightHandGrip"))
+
+        if (recognizedGesture.Equals("TwoHandsSlide"))
         {
             Frame frame = c.Frame();
-            Hand hand = frame.Hands[0];
-            Vector palmPos = hand.PalmPosition;
 
-            if (previousFrameHandPosition == null)
+            for (int i = 0; i < frame.Hands.Count; i++)
             {
-                previousFrameHandPosition = palmPos;
+                Hand hand = frame.Hands[i];
+
+                float x = hand.PalmVelocity.x;
+
+                if (x < 0)
+                {
+                    x = (-1) * x;
+                }
+
+                if (x > 40)
+                {
+                    Vector palmPos = hand.PalmPosition;
+
+                    if (previousFrameHandPosition == null)
+                    {
+                        previousFrameHandPosition = palmPos;
+                        return;
+                    }
+                    else
+                    {
+                        float diffX = (palmPos.x - previousFrameHandPosition.x) * speed;
+                        float diffY = (palmPos.y - previousFrameHandPosition.y) * speed;
+                        float diffZ = (palmPos.z - previousFrameHandPosition.z) * speed;
+
+                        model3D.transform.position = new Vector3((xx + diffX), (yy + diffY), (zz + diffZ));
+                    }
+                }
+
+            }
+        }
+
+        if (recognizedGesture.Equals("LeftHandGrip") || recognizedGesture.Equals("RightHandGrip"))
+        {
+            previousFrameHandPosition = new Vector(0, 0, 0);
+            Frame frame = c.Frame();
+            Hand hand = frame.Hands[0];
+
+            float hPitch = hand.Direction.Pitch * 30;
+            float hYaw = hand.Direction.Yaw * 30;
+            float hRoll = hand.Direction.Roll * 30;
+
+            //model3D.transform.rotation = Quaternion.Euler((hPitch + x), (hYaw + y), (hRoll + z));
+            //x += model3D.transform.rotation.x;
+            //y += model3D.transform.rotation.y;
+            //z += model3D.transform.rotation.z;
+        }
+
+        if (recognizedGesture.Equals("TwoHandsGrip"))
+        {
+            previousFrameHandPosition = new Vector(0, 0, 0);
+            Frame frame = c.Frame();
+            Hand hand = frame.Hands[0];
+            Hand hand2 = frame.Hands[1];
+            Vector palm = hand.PalmPosition;
+            Vector palm2 = hand2.PalmPosition;
+            float dist = DistanceBetweenTwoPoints(UnityVectorExtension.ToVector3(palm), UnityVectorExtension.ToVector3(palm2));
+            currentDist = dist * 0.001f;
+            if (prevDist == 0.0f)
+            {
+                prevDist = currentDist;
             }
             else
             {
-                Vector3 pos = model3D.transform.position;
-                pos.x += (palmPos.x - previousFrameHandPosition.x) * speed;
-                pos.y += (palmPos.y - previousFrameHandPosition.y) * speed;
-                //pos.z += (palmPos.z - previousFrameHandPosition.z) * speed;
-                model3D.transform.position = new Vector3(pos.x, pos.y, pos.z);
-                previousFrameHandPosition = palmPos;
+                float n = (currentDist - prevDist) * 3f;
+                Vector3 pos = model3D.transform.localScale;
+                pos.x += n;
+                pos.y += n;
+                pos.z += n;
+                model3D.transform.localScale = new Vector3(pos.x, pos.y, pos.z);
+                prevDist = currentDist;
             }
         }
-        if(recognizedGesture.Equals("LeftHandClose") || recognizedGesture.Equals("RightHandClose")){
 
+        if (recognizedGesture.Equals("LeftHandClose") || recognizedGesture.Equals("RightHandClose"))
+        {
+            previousFrameHandPosition = new Vector(0, 0, 0);
         }
 
-        Debug.Log($"Prediction - {recognizedGesture}");
-        
+        if (recognizedGesture.Equals("LeftCloseRightGrip "))
+        {
+            previousFrameHandPosition = new Vector(0, 0, 0);
+        }
+
+        if (recognizedGesture.Equals("RightCloseLeftGrip"))
+        {
+            previousFrameHandPosition = new Vector(0, 0, 0);
+        }
     }
-    
-}
-
-internal class GesturePrediction
-{
-    [ColumnName("PredictedLabel")]
-    public uint SelectedClusterId;
-    [ColumnName("Score")]
-    public float[] Distance;
-    //[ColumnName("Label")]
-    //public uint SelectedLabelId;
-}
-
-internal class GestureData
-{
-    [LoadColumn(0)]
-    public float FingerCount { get; set; }
-    [LoadColumn(1)]
-    public float HandType { get; set; }
-    [LoadColumn(2)]
-    public float ThumbX { get; set; }
-    [LoadColumn(3)]
-    public float ThumbY { get; set; }
-    [LoadColumn(4)]
-    public float ThumbZ { get; set; }
-    [LoadColumn(5)]
-    public float IndexX { get; set; }
-    [LoadColumn(6)]
-    public float IndexY { get; set; }
-    [LoadColumn(7)]
-    public float IndexZ { get; set; }
-    [LoadColumn(8)]
-    public float MiddleX { get; set; }
-    [LoadColumn(9)]
-    public float MiddleY { get; set; }
-    [LoadColumn(10)]
-    public float MiddleZ { get; set; }
-    [LoadColumn(11)]
-    public float RingX { get; set; }
-    [LoadColumn(12)]
-    public float RingY { get; set; }
-    [LoadColumn(13)]
-    public float RingZ { get; set; }
-    [LoadColumn(14)]
-    public float PinkyX { get; set; }
-    [LoadColumn(15)]
-    public float PinkyY { get; set; }
-    [LoadColumn(16)]
-    public float PinkyZ { get; set; }
-    [LoadColumn(17)]
-    public float ThumbIndex { get; set; }
-    [LoadColumn(18)]
-    public float IndexMiddle { get; set; }
-    [LoadColumn(19)]
-    public float MiddleRing { get; set; }
-    [LoadColumn(20)]
-    public float RingPinky { get; set; }
-    [LoadColumn(21)]
-    public float PinkyThumb { get; set; }
-    [LoadColumn(22), ColumnName("Label")]
-    public float Gesture { get; set; }
 
 }

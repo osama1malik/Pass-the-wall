@@ -381,59 +381,8 @@
     <Reference Include="InteractionEngineUtility">
       <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/LeapMotion/Modules/InteractionEngine/Plugins/InteractionEngineUtility.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Data.DataView">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.Data.DataView.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.Core">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.CpuMath">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.CpuMath.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.Data">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.Data.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.DataView">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.DataView.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.FastTree">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.FastTree.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.KMeansClustering">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.KMeansClustering.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.LightGbm">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.LightGbm.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.Mkl.Components">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.Mkl.Components.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.PCA">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.PCA.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.StandardTrainers">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.StandardTrainers.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.ML.Transforms">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Microsoft.ML.Transforms.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Buffers">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/System.Buffers.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Collections.Immutable">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/System.Collections.Immutable.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Memory">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/System.Memory.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Threading.Tasks.Dataflow">
-      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/x64/System.Threading.Tasks.Dataflow.dll</HintPath>
+    <Reference Include="Emgu.CV.World">
+      <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Assets/Plugins/Emgucv/Emgu.CV.World.dll</HintPath>
     </Reference>
     <Reference Include="UnityEditor.Advertisements">
       <HintPath>D:/FYP Data/Unity Projects/Pass the wall/Library/PackageCache/com.unity.ads@2.0.8/Editor/UnityEditor.Advertisements.dll</HintPath>
@@ -806,6 +755,9 @@
     </Reference>
     <Reference Include="Boo.Lang">
       <HintPath>C:/Program Files/Unity/Hub/Editor/2019.2.6f1/Editor/Data/MonoBleedingEdge/lib/mono/unityscript/Boo.Lang.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Drawing">
+      <HintPath>C:/Program Files/Unity/Hub/Editor/2019.2.6f1/Editor/Data/MonoBleedingEdge/lib/mono/4.7.1-api/System.Drawing.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

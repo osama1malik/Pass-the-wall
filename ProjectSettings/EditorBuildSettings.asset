@@ -17,4 +17,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/GamePlayScene.unity
     guid: c7895c9d95fa03e41baea2e655090e83
+  - enabled: 1
+    path: Assets/Scenes/Helicopter Model Scene.unity
+    guid: cb69ca12d2f16b04db55b95cf0beff7f
+  - enabled: 1
+    path: Assets/Scenes/Air Drone Scene.unity
+    guid: 02612986be1a38346b3c09f20524e963
   m_configObjects: {}

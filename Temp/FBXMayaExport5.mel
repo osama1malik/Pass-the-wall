@@ -1,0 +1,22 @@
+print "Starting maya loading and fbx conversion \n";
+	
+if (`file -q -exists "D:/FYP Data/Unity Projects/Pass the wall/Assets/Assets/Models/as350.mb"`)
+{		
+	file -o "D:/FYP Data/Unity Projects/Pass the wall/Assets/Assets/Models/as350.mb";
+	FBXExportEmbeddedTextures -v false;
+	// FBXExportHardEdges -v true;
+	FBXExportApplyConstantKeyReducer -v false;
+	FBXExportShowUI -v false;
+
+	print "Before fbx export\n";
+	FBXExport -f "D:/FYP Data/Unity Projects/Pass the wall/Temp/ExportedFBXFile.fbx";
+	print "after fbx export\n";
+}
+else
+	print "Could not open Maya file.";
+
+sysFile -delete "D:/FYP Data/Unity Projects/Pass the wall/Temp/CommandPipe";
+
+$donepipeKill = `fopen "D:/FYP Data/Unity Projects/Pass the wall/Temp/SyncPipeKill" "w"`;
+fwrite $donepipeKill "Done";
+fclose $donepipeKill;
